@@ -1,0 +1,41 @@
+name: Publish LavaLens Native alpha
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-native.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .payload/00 .payload/01 .payload/02 .payload/03 | base64 --decode > /tmp/lavalens-native.tar.gz
+          gzip -t /tmp/lavalens-native.tar.gz
+          git rm -r --ignore-unmatch .
+          tar -xzf /tmp/lavalens-native.tar.gz -C .
+          rm -rf .payload
+          rm -f .github/workflows/publish-native.yml
+
+      - name: Commit published source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Release LavaLens Native v0.1.0-alpha.1"
+          git push origin main
