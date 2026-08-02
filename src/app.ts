@@ -12,6 +12,9 @@ export function createApp(config: Config) {
   const providers = new ProviderRegistry(config);
   const metrics = new Metrics();
   const voice = new VoiceManager(config, store, events, providers.sources);
+  // O TTL nunca deve destruir um player com sessão de voz viva.
+  store.isProtected = (guildId) => voice.hasSession(guildId);
+  store.sessionCount = () => voice.activeSessions();
   const server = new ApiServer(config, store, providers, voice, events, metrics);
   return {
     config, events, store, providers, metrics, voice, server,

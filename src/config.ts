@@ -10,12 +10,21 @@ export interface Config {
   eventHistory: number;
   maxBodyBytes: number;
   logLevel: string;
+  /** Permite que providers HTTP alcancem redes internas (desligado por padrão: anti-SSRF). */
+  allowPrivateNetwork: boolean;
   youtube: {
     enabled: boolean;
     oauthRequired: boolean;
     credentialsFile: string;
     maxPlaylistTracks: number;
     cacheDir: string;
+    /** Ativa o fallback de streaming SABR via googlevideo. */
+    sabrEnabled: boolean;
+    /** PO token opcional; alguns clientes/IPs do YouTube passam a exigi-lo. */
+    poToken?: string;
+    sabrAudioQuality: string;
+    sabrMaxRetries: number;
+    sabrStallDetectionMs: number;
   };
   audio: {
     ffmpegPath: string;
@@ -73,12 +82,18 @@ export function loadConfig(options: { allowMissingYoutubeOAuth?: boolean } = {})
     eventHistory: int(process.env.EVENT_HISTORY, 64, 1, 1024),
     maxBodyBytes: int(process.env.MAX_BODY_BYTES, 524_288, 1024, 10_485_760),
     logLevel: process.env.LOG_LEVEL ?? 'info',
+    allowPrivateNetwork: bool(process.env.ALLOW_PRIVATE_NETWORK, false),
     youtube: {
       enabled: bool(process.env.YOUTUBE_ENABLED, true),
       oauthRequired: bool(process.env.YOUTUBE_OAUTH_REQUIRED, true),
       credentialsFile: process.env.YOUTUBE_OAUTH_CREDENTIALS_FILE ?? './lavalens-oauth.json',
       maxPlaylistTracks: int(process.env.YOUTUBE_MAX_PLAYLIST_TRACKS, 100, 1, 1000),
-      cacheDir: process.env.YOUTUBE_CACHE_DIR ?? './.cache/youtube'
+      cacheDir: process.env.YOUTUBE_CACHE_DIR ?? './.cache/youtube',
+      sabrEnabled: bool(process.env.YOUTUBE_SABR_ENABLED, true),
+      ...(process.env.YOUTUBE_PO_TOKEN?.trim() ? { poToken: process.env.YOUTUBE_PO_TOKEN.trim() } : {}),
+      sabrAudioQuality: process.env.YOUTUBE_SABR_AUDIO_QUALITY ?? (profile === 'quality' ? 'AUDIO_QUALITY_HIGH' : 'AUDIO_QUALITY_MEDIUM'),
+      sabrMaxRetries: int(process.env.YOUTUBE_SABR_MAX_RETRIES, 5, 0, 20),
+      sabrStallDetectionMs: int(process.env.YOUTUBE_SABR_STALL_DETECTION_MS, 20_000, 5_000, 120_000)
     },
     audio: {
       ffmpegPath: process.env.FFMPEG_PATH ?? 'ffmpeg',
@@ -91,6 +106,9 @@ export function loadConfig(options: { allowMissingYoutubeOAuth?: boolean } = {})
   };
 
   if (config.token.length < 24) throw new Error('LAVALENS_TOKEN deve ter pelo menos 24 caracteres.');
+  if (config.token === 'troque-por-um-token-longo-e-aleatorio') {
+    throw new Error('LAVALENS_TOKEN ainda é o valor de exemplo. Gere um token real (openssl rand -hex 32).');
+  }
   if (
     config.youtube.enabled &&
     config.youtube.oauthRequired &&

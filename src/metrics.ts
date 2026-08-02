@@ -1,6 +1,7 @@
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { loadavg } from 'node:os';
 import type { NodeSnapshot } from './types.js';
+import { VERSION } from './version.js';
 
 export class Metrics {
   #startedAt = Date.now();
@@ -16,7 +17,7 @@ export class Metrics {
     const percent = wallMicros > 0 ? ((cpu.user + cpu.system) / wallMicros) * 100 : 0;
     return {
       id: nodeId,
-      version: '0.1.0-alpha.2',
+      version: VERSION,
       uptimeMs: Date.now() - this.#startedAt,
       memory: process.memoryUsage(),
       cpu: { userMicros: cpu.user, systemMicros: cpu.system, percentEstimate: Number(percent.toFixed(2)) },

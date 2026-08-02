@@ -3,5 +3,18 @@
   "errors.player_not_found": "Player não encontrado.",
   "errors.youtube_oauth_required": "OAuth do YouTube é obrigatório.",
   "errors.node_capacity": "O nó atingiu sua capacidade.",
-  "errors.internal_error": "Ocorreu um erro interno."
+  "errors.internal_error": "Ocorreu um erro interno.",
+  "errors.invalid_body": "O corpo da requisição deve ser um objeto JSON.",
+  "errors.invalid_field": "Campo inválido na requisição.",
+  "errors.blocked_address": "Endereço de rede interna bloqueado.",
+  "errors.source_expired": "A fonte da faixa expirou. Refaça a busca.",
+  "errors.ffmpeg_not_found": "FFmpeg não foi encontrado no servidor.",
+  "errors.not_seekable": "Não é possível buscar nesta faixa.",
+  "errors.method_not_allowed": "Método HTTP não permitido.",
+  "errors.no_matches": "Nenhum resultado encontrado.",
+  "errors.youtube_sabr_disabled": "O fallback SABR do YouTube está desativado.",
+  "errors.youtube_sabr_metadata_missing": "A resposta do YouTube não contém os dados necessários para SABR.",
+  "errors.youtube_sabr_client_invalid": "O cliente do YouTube não pôde ser mapeado para SABR.",
+  "errors.youtube_sabr_potoken_required": "O YouTube exigiu um PO token para o streaming SABR.",
+  "errors.youtube_sabr_failed": "O streaming SABR do YouTube falhou."
 }

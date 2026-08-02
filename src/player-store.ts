@@ -55,7 +55,7 @@ export class PlayerStore {
     return state;
   }
 
-  update(guildId: string, patch: Partial<PlayerState>, eventType: string | null = 'PlayerUpdated'): PlayerState {
+  update(guildId: string, patch: Partial<PlayerState>, eventType = 'PlayerUpdated'): PlayerState {
     const current = this.get(guildId, true)!;
     const updated: PlayerState = {
       ...current,
@@ -71,12 +71,8 @@ export class PlayerStore {
     };
     this.#players.set(guildId, updated);
     this.touch(guildId);
-    if (eventType) this.events.emit(eventType, { state: updated }, guildId);
+    this.events.emit(eventType, { state: updated }, guildId);
     return updated;
-  }
-
-  updateSilent(guildId: string, patch: Partial<PlayerState>): PlayerState {
-    return this.update(guildId, patch, null);
   }
 
   enqueue(guildId: string, tracks: TrackInfo[]): PlayerState {
@@ -90,10 +86,26 @@ export class PlayerStore {
   }
 
   shift(guildId: string): TrackInfo | null {
-    const state = this.require(guildId);
+    const state = this.get(guildId);
+    if (!state || !state.queue.tracks.length) return null;
     const [next, ...remaining] = state.queue.tracks;
     this.update(guildId, { queue: { ...state.queue, tracks: remaining } }, 'QueueChanged');
     return next ?? null;
+  }
+
+  /** Atualiza campos derivados (posição, ping) sem emitir evento nem inundar SSE/WS. */
+  patchSilently(guildId: string, patch: Partial<PlayerState>): void {
+    const current = this.#players.get(guildId);
+    if (!current) return;
+    this.#players.set(guildId, {
+      ...current,
+      ...patch,
+      guildId: current.guildId,
+      createdAt: current.createdAt,
+      voice: patch.voice ? { ...current.voice, ...patch.voice } : current.voice,
+      audio: patch.audio ? { ...current.audio, ...patch.audio } : current.audio,
+      updatedAt: now()
+    });
   }
 
   destroy(guildId: string): boolean {
@@ -105,15 +117,21 @@ export class PlayerStore {
 
   list(): PlayerState[] { return [...this.#players.values()]; }
   activeCount(): number { return this.list().filter((p) => ['playing', 'loading', 'reconnecting'].includes(p.status)).length; }
+  /** Contagem de sessões de voz reais, injetada pelo VoiceManager. */
+  sessionCount: () => number = () => 0;
   totalCount(): number { return this.#players.size; }
 
   touch(guildId: string) { this.#lastAccess.set(guildId, Date.now()); }
+
+  /** Consultado pelo cleanup para não destruir players com sessão de voz viva. */
+  isProtected: (guildId: string) => boolean = () => false;
 
   cleanup(): void {
     const cutoff = Date.now() - this.config.stateTtlMs;
     for (const [guildId, accessed] of this.#lastAccess) {
       const state = this.#players.get(guildId);
-      if (accessed < cutoff && state && ['idle', 'stopped', 'error'].includes(state.status)) this.destroy(guildId);
+      if (!state) { this.#lastAccess.delete(guildId); continue; }
+      if (accessed < cutoff && !this.isProtected(guildId)) this.destroy(guildId);
     }
   }
 

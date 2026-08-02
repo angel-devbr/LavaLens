@@ -6,3 +6,4 @@ dist/
 coverage/
 .DS_Store
 lavalens-oauth.json
+.oauth-device-state.json

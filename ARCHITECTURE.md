@@ -20,7 +20,7 @@
 ## Providers
 
 - HTTP: stream direto quando já for WebM/Ogg Opus; caso contrário FFmpeg.
-- YouTube: YouTube.js, cliente TV e OAuth obrigatório. Downloads tentam WebM Opus direto.
+- YouTube: YouTube.js com cliente TV e OAuth obrigatório; tenta WebM/Opus direto e usa googlevideo para SABR/UMP somente áudio.
 - Providers futuros seguem a mesma interface e registram uma função `open()` no `SourceRegistry`.
 
 ## Escala

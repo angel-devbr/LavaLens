@@ -71,9 +71,11 @@ export interface AudioInfo {
   underruns: number;
 }
 
+export type LoopMode = 'off' | 'track' | 'queue';
+
 export interface QueueInfo {
   tracks: TrackInfo[];
-  loopMode: 'off' | 'track' | 'queue';
+  loopMode: LoopMode;
   autoplay: boolean;
 }
 
@@ -123,6 +125,8 @@ export interface ResolvedItem {
 
 export interface OpenedAudioSource {
   stream: NodeJS.ReadableStream;
+  /** Duração conhecida da fonte, quando o provider consegue informar. */
+  durationMs?: number;
   inputType: 'webm-opus' | 'ogg-opus' | 'arbitrary';
   directPassthrough: boolean;
   sourceCodec?: string;

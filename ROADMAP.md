@@ -7,6 +7,8 @@
 - [x] estado rico e métricas
 - [x] provider HTTP
 - [x] YouTube OAuth TV obrigatório
+- [x] Fallback SABR/UMP somente áudio com googlevideo
+- [ ] Validar PO token automático sem aumentar o processo ocioso
 - [x] ponte Discord Voice por adaptador remoto
 - [x] Opus passthrough e fallback FFmpeg
 - [x] Worker Cloudflare

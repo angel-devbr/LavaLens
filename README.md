@@ -2,7 +2,7 @@
 
 Servidor open source de áudio e observabilidade para bots de música do Discord, escrito em **TypeScript/Node.js 24** e sem utilizar Lavalink ou Java.
 
-> Estado: **v0.1.0-alpha.1**. O núcleo HTTP, REST, SSE, WebSocket, providers, OAuth e a ponte de voz estão implementados. Esta versão deve ser testada antes de uso em produção com muitos servidores.
+> Estado: **v0.1.0-alpha.5**. O núcleo HTTP, REST, SSE, WebSocket, providers, OAuth e a ponte de voz estão implementados. Esta versão deve ser testada antes de uso em produção com muitos servidores.
 
 ## O que ele mostra
 
@@ -25,6 +25,7 @@ LavaLens Native — Node.js/TypeScript
         │
         ├── Provider HTTP/rádio
         ├── YouTube.js + OAuth TV obrigatório
+        ├── googlevideo para streaming SABR/UMP
         ├── Opus passthrough quando possível
         └── FFmpeg somente quando necessário
                        │
@@ -71,6 +72,31 @@ YOUTUBE_ENABLED=false
 
 OAuth só funciona no cliente TV do YouTube.js. Cookies não são aceitos por este projeto.
 
+Se preferir gerar o código em duas etapas (útil quando o terminal cai no meio da
+autorização, pois o `device_code` fica salvo em disco):
+
+```bash
+node scripts/oauth-device.mjs start   # exibe o link e o código
+node scripts/oauth-device.mjs poll    # troca pelo token depois de autorizar
+```
+
+> **Streaming do YouTube.** O provider tenta primeiro `youtubei.js.download()` para
+> preservar o caminho direto WebM/Opus. Quando o vídeo possui somente
+> `server_abr_streaming_url`, ele usa `googlevideo` para processar SABR/UMP em modo
+> somente áudio. OAuth continua obrigatório e cookies não são aceitos.
+>
+> Alguns IPs/clientes também exigem um **PO token**. Para não adicionar `jsdom` e
+> BotGuard permanentemente ao processo ultraleve, o token é opcional e externo:
+> defina `YOUTUBE_PO_TOKEN` quando receber `YOUTUBE_SABR_POTOKEN_REQUIRED`. Como o
+> protocolo é privado e muda sem aviso, o fallback reduz a limitação atual, mas não
+> transforma o YouTube em uma API estável ou garantida.
+>
+> **Verificado no Discord real** (bot, servidor e canal de voz reais): 2 minutos
+> contínuos de reprodução, passthrough Opus direto (`webm-sabr`), zero travamentos,
+> DAVE v1 ativo. Requer o interpretador JavaScript embutido (`src/providers/js-runtime.ts`,
+> baseado em `node:vm` — sem dependências extras); sem ele, o youtubei.js não
+> consegue decifrar a URL SABR.
+
 ## Consulta detalhada
 
 ```bash
@@ -96,6 +122,13 @@ curl -X POST -H "Authorization: Bearer $LAVALENS_TOKEN" -H 'Content-Type: applic
   -d '{"query":"https://www.youtube.com/watch?v=VIDEO_ID"}' \
   http://localhost:8080/v1/guilds/123/play
 ```
+
+## Comandos validados
+
+`setAutoplay` aceita somente booleanos JSON reais (`true`/`false`); a string
+`"false"` é rejeitada. `setVolume` altera o áudio de verdade. O passthrough Opus
+continua sem custo extra em 100%; ao usar outro volume, o recurso ativa volume
+inline e passa a consumir mais CPU.
 
 ## Eventos
 
@@ -129,6 +162,9 @@ Execute:
 ```bash
 npm test
 npm run benchmark -- 10000
+npm run yt:check -- VIDEO_ID 180
+# Em uma host com internet e uma bot temporária:
+npm run test:discord
 ```
 
 ## Segurança

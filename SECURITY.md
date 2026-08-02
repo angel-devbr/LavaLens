@@ -9,3 +9,6 @@
 - Trate URLs, metadados e extensões como entrada não confiável.
 - Faça rotação de tokens e use uma conta Google secundária.
 - Reporte vulnerabilidades de forma privada ao mantenedor antes de abrir issue pública.
+
+- O provider HTTP valida IPv4/IPv6, bloqueia redes reservadas e fixa o IP validado no socket para impedir DNS rebinding.
+- `YOUTUBE_PO_TOKEN`, quando usado, é segredo e nunca deve ser commitado.

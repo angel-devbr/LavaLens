@@ -3,5 +3,18 @@
   "errors.player_not_found": "Player not found.",
   "errors.youtube_oauth_required": "YouTube OAuth is required.",
   "errors.node_capacity": "The node reached its capacity.",
-  "errors.internal_error": "An internal error occurred."
+  "errors.internal_error": "An internal error occurred.",
+  "errors.invalid_body": "The request body must be a JSON object.",
+  "errors.invalid_field": "Invalid field in request.",
+  "errors.blocked_address": "Internal network address blocked.",
+  "errors.source_expired": "Track source expired. Resolve the query again.",
+  "errors.ffmpeg_not_found": "FFmpeg was not found on the server.",
+  "errors.not_seekable": "This track cannot be seeked.",
+  "errors.method_not_allowed": "HTTP method not allowed.",
+  "errors.no_matches": "No results found.",
+  "errors.youtube_sabr_disabled": "The YouTube SABR fallback is disabled.",
+  "errors.youtube_sabr_metadata_missing": "The YouTube response lacks the data required for SABR.",
+  "errors.youtube_sabr_client_invalid": "The YouTube client could not be mapped to SABR.",
+  "errors.youtube_sabr_potoken_required": "YouTube required a PO token for SABR streaming.",
+  "errors.youtube_sabr_failed": "YouTube SABR streaming failed."
 }
