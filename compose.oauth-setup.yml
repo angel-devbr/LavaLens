@@ -1,9 +1,0 @@
-services:
-  lavalink-oauth-setup:
-    image: ghcr.io/lavalink-devs/lavalink:4.2.2-alpine
-    stdin_open: true
-    tty: true
-    volumes:
-      - "./application-oauth-setup.yml:/opt/Lavalink/application.yml:ro"
-    ports:
-      - "2333:2333"
