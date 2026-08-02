@@ -1,6 +1,6 @@
 {
   "name": "lavalens-native",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Servidor de áudio e observabilidade ultraleve para bots de música do Discord, sem Lavalink.",
   "type": "module",
   "private": false,
@@ -15,7 +15,8 @@
     "oauth:youtube": "node dist/cli.js youtube-oauth",
     "inspect": "node dist/cli.js inspect",
     "benchmark": "node scripts/benchmark.mjs",
-    "test": "npm run build && node --test tests/*.test.mjs"
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "test:discord": "node scripts/discord-e2e.mjs"
   },
   "dependencies": {
     "@discordjs/voice": "0.19.2",
