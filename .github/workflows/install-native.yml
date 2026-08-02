@@ -1,0 +1,61 @@
+name: Install LavaLens Native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/install-native.yml
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d .payload
+          mkdir -p /tmp/lavalens-native
+          cat .payload/* | base64 --decode > /tmp/lavalens-native.tar.gz
+          tar -tzf /tmp/lavalens-native.tar.gz >/dev/null
+          tar -xzf /tmp/lavalens-native.tar.gz -C /tmp/lavalens-native
+          test -f /tmp/lavalens-native/package.json
+          test -f /tmp/lavalens-native/src/index.ts
+
+      - name: Replace old project
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name .git \
+            ! -name .github \
+            ! -name .payload \
+            -exec rm -rf {} +
+          find .github -mindepth 1 -maxdepth 1 \
+            ! -name workflows \
+            -exec rm -rf {} + 2>/dev/null || true
+          find .github/workflows -mindepth 1 -maxdepth 1 \
+            ! -name install-native.yml \
+            -exec rm -rf {} + 2>/dev/null || true
+          cp -a /tmp/lavalens-native/. .
+          rm -rf .payload
+          rm -f .github/workflows/install-native.yml
+
+      - name: Commit LavaLens Native
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Create LavaLens Native v0.1.0-alpha.1"
+          git push origin main
