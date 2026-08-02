@@ -51,3 +51,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Fix LavaLens Native voice lifecycle and add Discord E2E test"
           git push origin main
+
+# Trigger refreshed after local validation passed.
