@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - '.alpha5/READY'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.alpha5/PR-READY'
   workflow_dispatch:
 
 permissions:
