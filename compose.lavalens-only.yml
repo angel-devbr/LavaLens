@@ -1,0 +1,15 @@
+services:
+  lavalens:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      LAVALENS_TOKEN: "${LAVALENS_TOKEN:-change-this-token}"
+      STATE_TTL: "30m"
+      EVENT_HISTORY: "16"
+    ports: ["8080:8080"]
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.10"

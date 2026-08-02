@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info:
+  title: LavaLens API
+  version: 0.1.0
+  description: Universal Discord music telemetry and control plane for Lavalink-compatible nodes.
+security: [{ bearerAuth: [] }]
+paths:
+  /health:
+    get: { security: [], responses: { "200": { description: Healthy } } }
+  /v1/status:
+    get: { responses: { "200": { description: Service statistics } } }
+  /v1/guilds/{guildId}/player:
+    parameters: [{ in: path, name: guildId, required: true, schema: { type: string } }]
+    get: { responses: { "200": { description: Rich player snapshot }, "404": { description: Player not found } } }
+    put: { requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }, responses: { "200": { description: Snapshot stored } } }
+    delete: { responses: { "204": { description: Removed } } }
+  /v1/guilds/{guildId}/events:
+    parameters: [{ in: path, name: guildId, required: true, schema: { type: string } }]
+    get: { responses: { "200": { description: Server-Sent Events stream, content: { text/event-stream: {} } } } }
+    post: { responses: { "202": { description: Event accepted } } }
+  /v1/guilds/{guildId}/commands:
+    parameters: [{ in: path, name: guildId, required: true, schema: { type: string } }]
+    post: { responses: { "202": { description: Command published into the guild event stream } } }
+  /v1/ingest/lavalink:
+    post: { responses: { "200": { description: Lavalink v4 player converted to rich snapshot } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }

@@ -1,0 +1,1 @@
+{"$schema":"./node_modules/wrangler/config-schema.json","name":"lavalens-edge","main":"src/index.ts","compatibility_date":"2026-08-02","compatibility_flags":["nodejs_compat"],"observability":{"enabled":true,"head_sampling_rate":1},"vars":{"LAVALENS_ORIGIN":"https://your-audio-node.example.com"}}
