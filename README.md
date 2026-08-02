@@ -1,112 +1,117 @@
-# LavaLens
+# LavaLens Native
 
-**LavaLens** é um plano de controle e observabilidade ultraleve para bots de música do Discord. Ele expõe em uma API universal tudo o que o bot e o nó de áudio sabem.
+Servidor open source de áudio e observabilidade para bots de música do Discord, escrito em **TypeScript/Node.js 24** e sem utilizar Lavalink ou Java.
 
-## Dados disponíveis
+> Estado: **v0.1.0-alpha.1**. O núcleo HTTP, REST, SSE, WebSocket, providers, OAuth e a ponte de voz estão implementados. Esta versão deve ser testada antes de uso em produção com muitos servidores.
 
-- tocando, pausado, carregando, reconectando, parado ou erro;
-- música, artista, plataforma, URL, ISRC, capa, duração e posição;
-- playlist, foto, posição e total de faixas;
-- fila, próxima música, autoplay, repetição, volume e filtros;
-- canal, ouvintes, shard, região e ping;
-- codec, 48 kHz, canais, bitrate, buffer, perda de pacotes e transcodificação;
-- nó, versão, CPU, RAM, players, frames perdidos e uptime;
-- solicitante e extensões livres;
-- eventos e comandos remotos por SSE.
+## O que ele mostra
 
-## Limite físico
+- tocando, pausado, carregando, parado, reconectando ou com erro;
+- música, artista, plataforma, URL, duração, posição, capa e dados do provider;
+- playlist, foto, dono, posição e total de faixas;
+- fila, autoplay, repetição, volume e filtros;
+- canal, shard, ouvintes, ping, DAVE, criptografia e reconexões;
+- codec de entrada, Opus 48 kHz estéreo, bitrate, passthrough, transcodificação e buffer;
+- RAM, CPU, event loop, uptime, players e carga do nó;
+- eventos em tempo real por SSE e WebSocket.
 
-O **LavaLens** é pequeno e pode ser limitado a 64 MB. O motor de áudio não pode prometer 100 MB e 0,1 CPU para muitos players simultâneos. Cada player precisa buscar, decodificar, codificar Opus e transmitir áudio continuamente. A escala cresce com players ativos.
+## Arquitetura
 
 ```text
 Bot em qualquer linguagem
-       │ REST/SSE
-Cloudflare Worker opcional ──► LavaLens
-                                      │
-                                      ├── Lavalink 4.2.2 ou futuro motor Rust
-                                      └── UDP + Voice WebSocket ──► Discord
+        │ REST + WebSocket/SSE
+        ▼
+LavaLens Native — Node.js/TypeScript
+        │
+        ├── Provider HTTP/rádio
+        ├── YouTube.js + OAuth TV obrigatório
+        ├── Opus passthrough quando possível
+        └── FFmpeg somente quando necessário
+                       │
+                       ▼
+                Discord Voice + DAVE
 ```
 
-Cloudflare hospeda API, painel e controle sob demanda. O nó de voz fica ativo enquanto houver música.
+O bot continua responsável por sua conexão principal ao Discord Gateway. O LavaLens envia o payload de entrada no canal como evento `DiscordGatewayPayload`; o bot envia esse payload ao shard e devolve `VOICE_STATE_UPDATE` e `VOICE_SERVER_UPDATE` para a API. Isso permite uso com discord.js, JDA, nextcord, DSharpPlus ou qualquer outro cliente.
 
-## Rodar
+## Instalação
 
-```bash
-export LAVALENS_TOKEN='troque-por-um-token-grande'
-go run ./cmd/lavalens
-```
+Requisitos:
 
-```bash
-docker compose -f compose.lavalens-only.yml up -d
-```
-
-```bash
-curl http://localhost:8080/health
-curl -H 'Authorization: Bearer change-this-token' http://localhost:8080/v1/status
-curl -X PUT -H 'Authorization: Bearer change-this-token' -H 'Content-Type: application/json' --data @examples/snapshot.json http://localhost:8080/v1/guilds/1234567890/player
-node examples/nodejs/client.mjs 1234567890
-```
-
-Comando remoto:
-
-```bash
-curl -X POST -H 'Authorization: Bearer change-this-token' -H 'Content-Type: application/json' -d '{"name":"seek","args":{"positionMs":90000}}' http://localhost:8080/v1/guilds/1234567890/commands
-```
-
-## OAuth do YouTube obrigatório
-
-A configuração de produção **não inicia o Lavalink sem** `YOUTUBE_OAUTH_REFRESH_TOKEN`. O cliente `TV` é o único autorizado a reproduzir áudio do YouTube; `WEB` e `MUSIC` ficam restritos a busca e metadados. Assim, não existe fallback de reprodução anônima.
-
-### 1. Gerar o refresh token uma única vez
-
-Use uma conta Google secundária. Execute:
-
-```bash
-docker compose -f compose.oauth-setup.yml up
-```
-
-Abra o endereço exibido no terminal, informe o código mostrado e conclua o login. Depois copie o `refreshToken` impresso no terminal e encerre o processo com `Ctrl+C`.
-
-### 2. Salvar o segredo
+- Node.js 24;
+- FFmpeg 7 ou compatível;
+- Linux recomendado;
+- `@discordjs/opus` recomendado para menor CPU.
 
 ```bash
 cp .env.example .env
+npm install
+npm run build
 ```
 
-Abra `.env` e substitua `cole_o_refresh_token_aqui` pelo token obtido. Não use aspas extras e nunca envie `.env` ao GitHub.
+### OAuth obrigatório do YouTube
 
-### 3. Iniciar a pilha completa
+Com `YOUTUBE_ENABLED=true`, o servidor **recusa iniciar sem OAuth**:
 
 ```bash
-docker compose up -d
+npm run oauth:youtube
 ```
 
-Sem o token, o Docker Compose interrompe antes de criar o serviço. Fora do Docker, `application.yml` também exige a variável de ambiente:
+Abra o endereço exibido, informe o código e conecte uma conta secundária. As credenciais serão salvas em `lavalens-oauth.json`, que já está no `.gitignore`.
 
 ```bash
-export YOUTUBE_OAUTH_REFRESH_TOKEN='seu_refresh_token'
-./scripts/start-lavalink.sh
+npm start
 ```
 
-O arquivo `application-oauth-setup.yml` existe somente para gerar ou trocar o token. Não deve ser usado como configuração de produção.
+Para testar o núcleo sem YouTube:
 
-## Lavalink v4
+```env
+YOUTUBE_ENABLED=false
+```
 
-`POST /v1/ingest/lavalink` converte o objeto `Player` do Lavalink para o modelo rico. Informações adicionais, como foto da playlist e solicitante, entram em `context.playlist`, `context.request` e `context.extensions`.
+OAuth só funciona no cliente TV do YouTube.js. Cookies não são aceitos por este projeto.
 
-## Otimizações
+## Consulta detalhada
 
-- Go sem dependências externas;
-- binário estático e imagem `scratch`;
-- estado em memória com TTL;
-- histórico curto;
-- cliente lento não bloqueia eventos;
-- JSON limitado a 512 KiB;
-- autenticação Bearer em tempo constante;
-- sem banco obrigatório;
-- SSE compatível com praticamente qualquer linguagem.
+```bash
+curl -H "Authorization: Bearer $LAVALENS_TOKEN" \
+  http://localhost:8080/v1/guilds/123/player
+```
+
+## Fluxo para tocar
+
+```bash
+# 1. Peça a conexão. O evento DiscordGatewayPayload conterá o Opcode 4.
+curl -X POST -H "Authorization: Bearer $LAVALENS_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"channelId":"987","shardId":0}' \
+  http://localhost:8080/v1/guilds/123/voice/connect
+
+# 2. Encaminhe os eventos recebidos do Discord.
+curl -X POST -H "Authorization: Bearer $LAVALENS_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"type":"server","payload":{}}' \
+  http://localhost:8080/v1/guilds/123/voice/update
+
+# 3. Toque.
+curl -X POST -H "Authorization: Bearer $LAVALENS_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"query":"https://www.youtube.com/watch?v=VIDEO_ID"}' \
+  http://localhost:8080/v1/guilds/123/play
+```
+
+## Eventos
+
+```bash
+curl -N -H "Authorization: Bearer $LAVALENS_TOKEN" http://localhost:8080/v1/events
+```
+
+WebSocket:
+
+```text
+ws://localhost:8080/v1/ws?token=SEU_TOKEN
+```
 
 ## Cloudflare
+
+A pasta `cloudflare/` contém um Worker TypeScript que autentica, acorda e encaminha chamadas para o nó. O Worker não processa áudio porque Discord Voice precisa de UDP contínuo.
 
 ```bash
 cd cloudflare
@@ -115,20 +120,21 @@ npx wrangler secret put LAVALENS_TOKEN
 npm run deploy
 ```
 
-Ajuste `LAVALENS_ORIGIN`. O Worker não envia áudio UDP ao Discord.
+## Limites físicos
 
-## Próxima fase
+A API ociosa foi desenhada para ser pequena. Uma música com Opus passthrough pode se aproximar da meta de 100 MB, mas Node.js, DAVE e bibliotecas nativas variam por host. Transcodificação com FFmpeg ultrapassará 0,1 CPU em muitos casos. O limite `MAX_ACTIVE_PLAYERS` impede que um nó fraco aceite mais sessões do que suporta.
 
-O motor nativo em Rust deve implementar DAVE, RTP/UDP, Opus 48 kHz, zero-copy quando possível, resolvers por plataforma, limite por player, auto-sleep sem players e balanceamento entre nós. Ainda assim, 100 MB servem poucos players, não usuários ilimitados.
+Execute:
 
-## Perfis do nó de áudio
+```bash
+npm test
+npm run benchmark -- 10000
+```
 
-- `profiles/application-eco.yml`: menor CPU, qualidade Opus 4 e resampling LOW;
-- `profiles/application-balanced.yml`: Opus 8 e resampling MEDIUM;
-- `profiles/application-quality.yml`: Opus 10 e resampling HIGH, com maior custo de CPU.
+## Segurança
 
-A configuração de qualidade máxima não cabe na mesma promessa de 0,1 CPU para muitos players. Escolha o perfil conforme a host.
+Nunca publique `.env`, `lavalens-oauth.json`, token do bot ou `LAVALENS_TOKEN`. Use HTTPS em produção e um token diferente por ambiente.
 
-## Bridge automático
+## Licença
 
-`examples/nodejs/lavalink-bridge.mjs` consulta os players do Lavalink v4 e envia os estados ao LavaLens. Metadados específicos do bot podem ser guardados em `track.userData`.
+MIT.

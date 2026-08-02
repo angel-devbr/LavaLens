@@ -1,2 +1,24 @@
-export interface Env { LAVALENS_ORIGIN: string; LAVALENS_TOKEN: string; }
-export default { async fetch(request:Request,env:Env):Promise<Response>{ const incoming=new URL(request.url); if(!incoming.pathname.startsWith("/api/")){return Response.json({service:"lavalens-edge",usage:"/api/v1/status",note:"This edge layer controls and observes audio nodes; it does not transmit Discord UDP audio."});} const origin=new URL(env.LAVALENS_ORIGIN); origin.pathname=incoming.pathname.slice(4); origin.search=incoming.search; const headers=new Headers(request.headers); headers.set("Authorization",`Bearer ${env.LAVALENS_TOKEN}`); headers.set("X-Forwarded-Host",incoming.host); const upstream=await fetch(origin,{method:request.method,headers,body:request.method==="GET"||request.method==="HEAD"?undefined:request.body,redirect:"manual"}); const responseHeaders=new Headers(upstream.headers); responseHeaders.set("Access-Control-Allow-Origin","*"); responseHeaders.set("X-LavaLens-Edge","cloudflare"); return new Response(upstream.body,{status:upstream.status,headers:responseHeaders}); } };
+interface Env {
+  LAVALENS_ORIGIN: string;
+  NODE_WAKE_URL?: string;
+  LAVALENS_TOKEN: string;
+}
+
+async function wake(env: Env): Promise<void> {
+  if (!env.NODE_WAKE_URL) return;
+  try { await fetch(env.NODE_WAKE_URL, { method: 'POST', headers: { authorization: `Bearer ${env.LAVALENS_TOKEN}` } }); }
+  catch { /* o proxy ainda tentará alcançar o nó */ }
+}
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === '/health') return Response.json({ ok: true, edge: true });
+    if (request.headers.get('upgrade') === 'websocket' || request.method !== 'GET') ctx.waitUntil(wake(env));
+    const upstream = new URL(url.pathname + url.search, env.LAVALENS_ORIGIN);
+    const headers = new Headers(request.headers);
+    headers.set('authorization', `Bearer ${env.LAVALENS_TOKEN}`);
+    headers.set('x-lavalens-edge', 'cloudflare');
+    return fetch(upstream, { method: request.method, headers, body: request.body, redirect: 'manual' });
+  }
+} satisfies ExportedHandler<Env>;

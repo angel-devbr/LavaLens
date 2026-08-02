@@ -1,9 +1,18 @@
-FROM golang:1.23-alpine AS build
-WORKDIR /src
-COPY . .
-RUN CGO_ENABLED=0 go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/lavalens ./cmd/lavalens
-FROM scratch
-COPY --from=build /out/lavalens /lavalens
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json ./
+RUN npm install
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build && npm prune --omit=dev
+
+FROM node:24-bookworm-slim
+ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
+USER node
 EXPOSE 8080
-USER 65532:65532
-ENTRYPOINT ["/lavalens"]
+CMD ["node", "dist/index.js"]

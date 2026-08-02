@@ -1,11 +1,11 @@
 # Changelog
 
-## 0.2.0 - OAuth obrigatório
+## 0.1.0-alpha.1 — 2026-08-02
 
-- OAuth do YouTube obrigatório em produção.
-- Inicialização bloqueada sem `YOUTUBE_OAUTH_REFRESH_TOKEN`.
-- Cliente `TV` como único cliente de reprodução do YouTube.
-- Reprodução anônima do cliente `WEB` desativada.
-- Configuração isolada para emissão inicial do refresh token.
-- Validação para Docker Compose, Linux/macOS e Windows PowerShell.
-- Proteção do arquivo `.env` no `.gitignore`.
+- Primeira implementação independente em Node.js/TypeScript.
+- Sem Lavalink, Java ou banco obrigatório.
+- API REST, SSE, WebSocket, telemetria e estado detalhado.
+- Adaptador remoto para Discord Voice/DAVE.
+- YouTube.js com OAuth TV obrigatório e sem cookies.
+- Opus passthrough e FFmpeg sob demanda.
+- Worker Cloudflare e exemplos de clientes.

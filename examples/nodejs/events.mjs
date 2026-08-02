@@ -1,3 +1,0 @@
-const baseURL=process.env.LAVALENS_URL??"http://localhost:8080",token=process.env.LAVALENS_TOKEN??"change-this-token",guildId=process.argv[2]??"1234567890";
-const response=await fetch(`${baseURL}/v1/guilds/${guildId}/events`,{headers:{Authorization:`Bearer ${token}`}}); if(!response.ok||!response.body) throw new Error(await response.text());
-const decoder=new TextDecoder(); let buffer=""; for await(const chunk of response.body){buffer+=decoder.decode(chunk,{stream:true}); for(;;){const end=buffer.indexOf("\n\n"); if(end<0)break; const block=buffer.slice(0,end); buffer=buffer.slice(end+2); const data=block.split("\n").find(line=>line.startsWith("data: ")); if(data)console.log(JSON.parse(data.slice(6)));}}

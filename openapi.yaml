@@ -1,0 +1,43 @@
+openapi: 3.1.0
+info:
+  title: LavaLens Native API
+  version: 0.1.0-alpha.1
+servers:
+  - url: http://localhost:8080
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get: { security: [], responses: { "200": { description: Healthy } } }
+  /v1/status:
+    get: { responses: { "200": { description: Node status } } }
+  /v1/guilds/{guildId}/player:
+    parameters:
+      - { name: guildId, in: path, required: true, schema: { type: string } }
+    get: { responses: { "200": { description: Rich player state } } }
+    put:
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: Updated player } }
+    delete: { responses: { "200": { description: Destroyed player } } }
+  /v1/guilds/{guildId}/load:
+    post:
+      parameters: [{ name: guildId, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [query], properties: { query: { type: string } } } } } }
+      responses: { "200": { description: Resolved tracks or playlist } }
+  /v1/guilds/{guildId}/play:
+    post:
+      parameters: [{ name: guildId, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { "202": { description: Playback accepted } }
+  /v1/guilds/{guildId}/commands:
+    post:
+      parameters: [{ name: guildId, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name] } } } }
+      responses: { "200": { description: Command executed } }
+  /v1/events:
+    get: { responses: { "200": { description: Server-Sent Events stream } } }
+  /v1/ws:
+    get: { responses: { "101": { description: WebSocket event stream } } }

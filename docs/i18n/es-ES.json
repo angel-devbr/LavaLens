@@ -1,0 +1,7 @@
+{
+  "errors.unauthorized": "Token de autenticación inválido.",
+  "errors.player_not_found": "Reproductor no encontrado.",
+  "errors.youtube_oauth_required": "OAuth de YouTube es obligatorio.",
+  "errors.node_capacity": "El nodo alcanzó su capacidad.",
+  "errors.internal_error": "Ocurrió un error interno."
+}

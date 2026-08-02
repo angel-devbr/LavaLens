@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: lavalens-native
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: LAVALENS_TOKEN
+        generateValue: true
+      - key: YOUTUBE_ENABLED
+        value: "false"
