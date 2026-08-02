@@ -38,6 +38,7 @@ async function readBody(request: IncomingMessage, maxBytes: number): Promise<any
 export class ApiServer {
   readonly server;
   readonly ws;
+  #sseClients = new Set<ServerResponse>();
   constructor(
     private readonly config: Config,
     private readonly store: PlayerStore,
@@ -58,7 +59,7 @@ export class ApiServer {
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     if (req.method === 'OPTIONS') return json(res, 204, {});
-    if (url.pathname === '/health') return json(res, 200, { ok: true, name: 'LavaLens Native', version: '0.1.0-alpha.1' });
+    if (url.pathname === '/health') return json(res, 200, { ok: true, name: 'LavaLens Native', version: '0.1.0-alpha.2' });
     if (!this.authorized(req, url)) return json(res, 401, { code: 'UNAUTHORIZED', message: 'Bearer token inválido.' });
 
     try {
@@ -69,13 +70,19 @@ export class ApiServer {
           events: { subscribers: this.events.subscriberCount }
         });
       }
-      if (req.method === 'GET' && url.pathname === '/v1/guilds') return json(res, 200, { data: this.store.list() });
+      if (req.method === 'GET' && url.pathname === '/v1/guilds') {
+        this.voice.syncAllPositions();
+        return json(res, 200, { data: this.store.list() });
+      }
       if (req.method === 'GET' && url.pathname === '/v1/events') return this.sse(req, res, url);
 
       const playerMatch = /^\/v1\/guilds\/([^/]+)\/player$/.exec(url.pathname);
       if (playerMatch) {
         const guildId = playerMatch[1]!;
-        if (req.method === 'GET') return json(res, 200, this.store.require(guildId));
+        if (req.method === 'GET') {
+          this.voice.syncPosition(guildId);
+          return json(res, 200, this.store.require(guildId));
+        }
         if (req.method === 'PUT') return json(res, 200, this.store.update(guildId, await readBody(req, this.config.maxBodyBytes)));
         if (req.method === 'DELETE') { this.voice.disconnect(guildId); return json(res, 200, { destroyed: this.store.destroy(guildId) }); }
       }
@@ -135,9 +142,23 @@ export class ApiServer {
         else if (name === 'stop') this.voice.stop(guildId);
         else if (name === 'seek') await this.voice.seek(guildId, Number(args.positionMs));
         else if (name === 'disconnect') this.voice.disconnect(guildId);
-        else if (name === 'setVolume') this.store.update(guildId, { volume: Math.max(0, Math.min(200, Number(args.volume))) }, 'VolumeChanged');
-        else if (name === 'setRepeat') this.store.update(guildId, { queue: { ...this.store.require(guildId).queue, loopMode: args.mode } }, 'QueueChanged');
-        else if (name === 'setAutoplay') this.store.update(guildId, { queue: { ...this.store.require(guildId).queue, autoplay: Boolean(args.enabled) } }, 'QueueChanged');
+        else if (name === 'setVolume') this.voice.setVolume(guildId, Number(args.volume));
+        else if (name === 'setRepeat') {
+          if (!['off', 'track', 'queue'].includes(String(args.mode))) {
+            throw new LavaLensError('INVALID_REPEAT_MODE', 'mode deve ser off, track ou queue.', 400);
+          }
+          this.store.update(guildId, {
+            queue: { ...this.store.require(guildId).queue, loopMode: args.mode }
+          }, 'QueueChanged');
+        }
+        else if (name === 'setAutoplay') {
+          if (typeof args.enabled !== 'boolean') {
+            throw new LavaLensError('INVALID_AUTOPLAY', 'enabled deve ser boolean.', 400);
+          }
+          this.store.update(guildId, {
+            queue: { ...this.store.require(guildId).queue, autoplay: args.enabled }
+          }, 'QueueChanged');
+        }
         else throw new LavaLensError('UNKNOWN_COMMAND', `Comando desconhecido: ${name}`);
         this.events.emit('CommandExecuted', { name, args }, guildId);
         return json(res, 200, this.store.get(guildId, true));
@@ -156,9 +177,19 @@ export class ApiServer {
     });
     const after = Number(url.searchParams.get('after') ?? 0);
     for (const event of this.events.history(after)) res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
-    const unsubscribe = this.events.subscribe((event) => res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`));
-    const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 20_000); heartbeat.unref();
-    req.on('close', () => { clearInterval(heartbeat); unsubscribe(); });
+    this.#sseClients.add(res);
+    const unsubscribe = this.events.subscribe((event) => {
+      if (!res.destroyed && !res.writableEnded) res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    });
+    const heartbeat = setInterval(() => {
+      if (!res.destroyed && !res.writableEnded) res.write(': heartbeat\n\n');
+    }, 20_000);
+    heartbeat.unref();
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      this.#sseClients.delete(res);
+    });
   }
 
   handleUpgrade(req: IncomingMessage, socket: Socket, head: Buffer): void {
@@ -177,6 +208,8 @@ export class ApiServer {
   }
   async close(): Promise<void> {
     this.ws.close();
+    for (const client of this.#sseClients) client.end();
+    this.#sseClients.clear();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
   }
 }
