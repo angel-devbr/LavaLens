@@ -55,7 +55,7 @@ export class PlayerStore {
     return state;
   }
 
-  update(guildId: string, patch: Partial<PlayerState>, eventType = 'PlayerUpdated'): PlayerState {
+  update(guildId: string, patch: Partial<PlayerState>, eventType: string | null = 'PlayerUpdated'): PlayerState {
     const current = this.get(guildId, true)!;
     const updated: PlayerState = {
       ...current,
@@ -71,8 +71,12 @@ export class PlayerStore {
     };
     this.#players.set(guildId, updated);
     this.touch(guildId);
-    this.events.emit(eventType, { state: updated }, guildId);
+    if (eventType) this.events.emit(eventType, { state: updated }, guildId);
     return updated;
+  }
+
+  updateSilent(guildId: string, patch: Partial<PlayerState>): PlayerState {
+    return this.update(guildId, patch, null);
   }
 
   enqueue(guildId: string, tracks: TrackInfo[]): PlayerState {
