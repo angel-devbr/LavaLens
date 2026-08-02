@@ -29,7 +29,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          for file in .alpha5/chunk-*; do
+            printf '%s %s ' "$file" "$(wc -c < "$file")"
+            git hash-object "$file"
+          done
           cat .alpha5/chunk-* | base64 --decode > /tmp/LavaLens-alpha5.zip
+          sha256sum /tmp/LavaLens-alpha5.zip
           echo '415d4d46949b9ed39be9066af23d5c6762e45e443e00fc410301ea576361c94b  /tmp/LavaLens-alpha5.zip' | sha256sum --check -
           rm -rf /tmp/lavalens-alpha5
           mkdir -p /tmp/lavalens-alpha5
