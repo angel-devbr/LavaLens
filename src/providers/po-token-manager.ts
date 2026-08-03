@@ -12,9 +12,8 @@ type PoTokenRuntime = {
 /**
  * Gera PO Tokens content-bound sob demanda.
  *
- * O YouTube passou a vincular muitos tokens ao ID do vídeo, portanto um único
- * token estático renovado por cron não é suficiente. Este gerenciador mantém a
- * infraestrutura BotGuard em memória, gera um token por vídeo e usa cache curto.
+ * O YouTube vincula os tokens de mídia ao ID do vídeo. Este gerenciador mantém
+ * o minter BotGuard em memória, gera um token para cada vídeo e usa cache curto.
  */
 export class PoTokenManager {
   readonly #cache = new Map<string, CacheEntry>();
@@ -124,19 +123,27 @@ export class PoTokenManager {
 }
 
 async function createRuntime(config: Config): Promise<PoTokenRuntime> {
-  const [{ BG }, { JSDOM }] = await Promise.all([
-    import('bgutils-js'),
+  const [botguard, webpo, utils, jsdom] = await Promise.all([
+    import('bgutils-js/botguard'),
+    import('bgutils-js/webpo'),
+    import('bgutils-js/utils'),
     import('jsdom')
   ]);
 
+  const { BotGuardClient, getChallenge } = botguard;
+  const { WebPoMinter } = webpo;
+  const { buildURL, getHeaders } = utils;
+  const { JSDOM } = jsdom;
+
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
     url: 'https://www.youtube.com/',
+    referrer: 'https://www.youtube.com/',
     runScripts: 'outside-only',
     pretendToBeVisual: true
   });
-  const window = dom.window as any;
 
-  Object.assign(window, {
+  const runtimeGlobal = dom.window as unknown as typeof globalThis;
+  Object.assign(runtimeGlobal, {
     fetch: globalThis.fetch.bind(globalThis),
     crypto: globalThis.crypto,
     TextEncoder: globalThis.TextEncoder,
@@ -150,35 +157,72 @@ async function createRuntime(config: Config): Promise<PoTokenRuntime> {
     btoa: globalThis.btoa
   });
 
-  let initializedFor: string | undefined;
-  let challenge: any;
+  let minter: InstanceType<typeof WebPoMinter> | undefined;
+  let minterExpiresAt = 0;
+  let initializing: Promise<void> | undefined;
 
-  return {
-    close: () => dom.window.close(),
-    generate: async (contentBinding: string) => {
-      const bgConfig: any = {
-        fetch: globalThis.fetch.bind(globalThis),
-        globalObj: window,
-        identifier: contentBinding,
+  const initialize = async (): Promise<void> => {
+    const now = Date.now();
+    if (minter && minterExpiresAt > now + 60_000) return;
+    if (initializing) return initializing;
+
+    initializing = (async () => {
+      const challenge = await getChallenge({
+        fetchFunction: globalThis.fetch.bind(globalThis),
         requestKey: config.youtube.poTokenRequestKey
-      };
+      });
+      const interpreterJavascript = challenge.interpreterJavascript
+        ?.privateDoNotAccessOrElseSafeScriptWrappedValue;
+      if (!interpreterJavascript) throw new Error('Challenge do BotGuard sem interpreter JavaScript.');
 
-      if (!challenge || initializedFor !== contentBinding) {
-        challenge = await BG.Challenge.create(bgConfig);
-        if (!challenge) throw new Error('BotGuard não retornou challenge.');
-        const script = challenge.interpreterJavascript?.privateDoNotAccessOrElseSafeScriptWrappedValue
-          ?? challenge.interpreterJavascript?.private_do_not_access_or_else_safe_script_wrapped_value;
-        if (!script) throw new Error('Challenge do BotGuard sem interpreter JavaScript.');
-        window.eval(String(script));
-        initializedFor = contentBinding;
-      }
-
-      const result = await BG.PoToken.generate({
+      dom.window.eval(String(interpreterJavascript));
+      const botGuardClient = await BotGuardClient.create({
         program: challenge.program,
         globalName: challenge.globalName,
-        bgConfig
+        globalObject: runtimeGlobal
       });
-      return String(result?.poToken ?? '');
+
+      const webPoSignalOutput: unknown[] = [];
+      const botguardResponse = await botGuardClient.snapshot({ webPoSignalOutput });
+      const response = await fetch(buildURL('GenerateIT', false), {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify([config.youtube.poTokenRequestKey, botguardResponse]),
+        signal: AbortSignal.timeout(config.youtube.poTokenGenerationTimeoutMs)
+      });
+      if (!response.ok) throw new Error(`GenerateIT retornou HTTP ${response.status}.`);
+
+      const [integrityToken, estimatedTtlSecs, mintRefreshThreshold, websafeFallbackToken] =
+        await response.json() as [string, number, number, string];
+      minter = await WebPoMinter.create({
+        integrityToken,
+        estimatedTtlSecs,
+        mintRefreshThreshold,
+        websafeFallbackToken
+      }, webPoSignalOutput as never);
+
+      const ttlMs = Math.max(60_000, Number(estimatedTtlSecs || 300) * 1000);
+      const refreshMs = Math.max(60_000, Number(mintRefreshThreshold || 60) * 1000);
+      minterExpiresAt = Date.now() + Math.max(60_000, ttlMs - refreshMs);
+    })();
+
+    try {
+      await initializing;
+    } finally {
+      initializing = undefined;
+    }
+  };
+
+  return {
+    close: () => {
+      minter = undefined;
+      minterExpiresAt = 0;
+      dom.window.close();
+    },
+    generate: async (contentBinding: string) => {
+      await initialize();
+      if (!minter) throw new Error('Minter de PO Token não inicializado.');
+      return minter.mintAsWebsafeString(contentBinding);
     }
   };
 }
