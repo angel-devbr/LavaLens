@@ -1,6 +1,6 @@
 {
   "name": "lavalens-native",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "Servidor de áudio e observabilidade ultraleve para bots de música do Discord, sem Lavalink.",
   "type": "module",
   "private": false,
@@ -22,7 +22,9 @@
   "dependencies": {
     "@discordjs/voice": "0.19.2",
     "youtubei.js": "17.2.0",
-    "googlevideo": "4.1.1"
+    "googlevideo": "4.1.1",
+    "bgutils-js": "4.0.2",
+    "jsdom": "30.0.0"
   },
   "optionalDependencies": {
     "@discordjs/opus": "0.10.0"
