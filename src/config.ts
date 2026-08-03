@@ -20,8 +20,15 @@ export interface Config {
     cacheDir: string;
     /** Ativa o fallback de streaming SABR via googlevideo. */
     sabrEnabled: boolean;
-    /** PO token opcional; alguns clientes/IPs do YouTube passam a exigi-lo. */
+    /** PO token estático opcional, usado apenas como fallback. */
     poToken?: string;
+    /** Gera automaticamente tokens content-bound para cada vídeo. */
+    poTokenAutoEnabled: boolean;
+    poTokenRequestKey: string;
+    poTokenCacheTtlMs: number;
+    poTokenCacheMaxEntries: number;
+    poTokenGenerationTimeoutMs: number;
+    poTokenFailureCooldownMs: number;
     sabrAudioQuality: string;
     sabrMaxRetries: number;
     sabrStallDetectionMs: number;
@@ -42,7 +49,6 @@ const int = (value: string | undefined, fallback: number, min = 0, max = Number.
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 };
-
 
 function validYoutubeCredentials(file: string): boolean {
   try {
@@ -91,6 +97,12 @@ export function loadConfig(options: { allowMissingYoutubeOAuth?: boolean } = {})
       cacheDir: process.env.YOUTUBE_CACHE_DIR ?? './.cache/youtube',
       sabrEnabled: bool(process.env.YOUTUBE_SABR_ENABLED, true),
       ...(process.env.YOUTUBE_PO_TOKEN?.trim() ? { poToken: process.env.YOUTUBE_PO_TOKEN.trim() } : {}),
+      poTokenAutoEnabled: bool(process.env.YOUTUBE_PO_TOKEN_AUTO_ENABLED, true),
+      poTokenRequestKey: process.env.YOUTUBE_PO_TOKEN_REQUEST_KEY ?? 'O43z0dpjhgX20SCx4KAo',
+      poTokenCacheTtlMs: int(process.env.YOUTUBE_PO_TOKEN_CACHE_TTL_MS, 21_600_000, 60_000, 43_200_000),
+      poTokenCacheMaxEntries: int(process.env.YOUTUBE_PO_TOKEN_CACHE_MAX_ENTRIES, 256, 1, 10_000),
+      poTokenGenerationTimeoutMs: int(process.env.YOUTUBE_PO_TOKEN_GENERATION_TIMEOUT_MS, 30_000, 5_000, 120_000),
+      poTokenFailureCooldownMs: int(process.env.YOUTUBE_PO_TOKEN_FAILURE_COOLDOWN_MS, 60_000, 1_000, 3_600_000),
       sabrAudioQuality: process.env.YOUTUBE_SABR_AUDIO_QUALITY ?? (profile === 'quality' ? 'AUDIO_QUALITY_HIGH' : 'AUDIO_QUALITY_MEDIUM'),
       sabrMaxRetries: int(process.env.YOUTUBE_SABR_MAX_RETRIES, 5, 0, 20),
       sabrStallDetectionMs: int(process.env.YOUTUBE_SABR_STALL_DETECTION_MS, 20_000, 5_000, 120_000)
