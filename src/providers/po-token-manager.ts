@@ -1,4 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import type { WebPoSignalOutput } from 'bgutils-js/shared-types';
 import type { Config } from '../config.js';
 import { LavaLensError } from '../errors.js';
 
@@ -182,7 +183,7 @@ async function createRuntime(config: Config): Promise<PoTokenRuntime> {
         globalObject: runtimeGlobal
       });
 
-      const webPoSignalOutput: unknown[] = [];
+      const webPoSignalOutput: WebPoSignalOutput = [];
       const botguardResponse = await botGuardClient.snapshot({ webPoSignalOutput });
       const response = await fetch(buildURL('GenerateIT', false), {
         method: 'POST',
@@ -199,7 +200,7 @@ async function createRuntime(config: Config): Promise<PoTokenRuntime> {
         estimatedTtlSecs,
         mintRefreshThreshold,
         websafeFallbackToken
-      }, webPoSignalOutput as never);
+      }, webPoSignalOutput);
 
       const ttlMs = Math.max(60_000, Number(estimatedTtlSecs || 300) * 1000);
       const refreshMs = Math.max(60_000, Number(mintRefreshThreshold || 60) * 1000);
