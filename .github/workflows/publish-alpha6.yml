@@ -1,0 +1,54 @@
+name: Publish LavaLens alpha.6
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.alpha6/APPLY'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Reconstruct alpha.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .alpha6/chunk-* | base64 --decode > /tmp/LavaLens-alpha6.zip
+          echo '0fa9658362a506fd1b8bb610602b10636351f5923aa23e55e2043ff425b30c03  /tmp/LavaLens-alpha6.zip' | sha256sum --check -
+          unzip -t /tmp/LavaLens-alpha6.zip >/dev/null
+          rm -rf /tmp/lavalens-alpha6
+          mkdir -p /tmp/lavalens-alpha6
+          unzip -q /tmp/LavaLens-alpha6.zip -d /tmp/lavalens-alpha6
+          test "$(node -p "require('/tmp/lavalens-alpha6/LavaLens/package.json').version")" = '0.1.0-alpha.6'
+      - name: Replace repository tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/lavalens-alpha6/LavaLens/. .
+      - name: Install and validate
+        run: |
+          npm install
+          npm test
+      - name: Commit alpha.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf node_modules dist
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release LavaLens Native v0.1.0-alpha.6'
+          git push origin HEAD:main
