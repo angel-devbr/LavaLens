@@ -1,0 +1,59 @@
+name: Apply alpha.6 automatic PO token
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.alpha6/APPLY'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply integration
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+
+          p=Path('src/providers/youtube.ts'); s=p.read_text()
+          if "./po-token-manager.js" not in s:
+            s=s.replace("import { installJsRuntime } from './js-runtime.js';", "import { installJsRuntime } from './js-runtime.js';\nimport { PoTokenManager } from './po-token-manager.js';")
+            s=s.replace("export class YouTubeProvider implements Provider {", "export class YouTubeProvider implements Provider {\n  readonly #poTokens: PoTokenManager;")
+            s=s.replace("constructor(private readonly config: Config, private readonly sources: SourceRegistry) {}", "constructor(private readonly config: Config, private readonly sources: SourceRegistry) {\n    this.#poTokens = new PoTokenManager(config);\n  }\n  close(): void { this.#poTokens.close(); }")
+            s=s.replace("const stream = new SabrStream({\n        formats,\n        serverAbrStreamingUrl,\n        videoPlaybackUstreamerConfig,\n        ...(this.config.youtube.poToken ? { poToken: this.config.youtube.poToken } : {}),", "const poToken = await this.#poTokens.get(videoId);\n      const stream = new SabrStream({\n        formats,\n        serverAbrStreamingUrl,\n        videoPlaybackUstreamerConfig,\n        ...(poToken ? { poToken } : {}),")
+            s=s.replace("    } catch (error) {\n      throw sabrError(error, videoId);\n    }\n  }", "    } catch (error) {\n      const message = error instanceof Error ? error.message : String(error);\n      if (/po.?token|stream protection|status.?3|forbidden|403/i.test(message)) this.#poTokens.invalidate(videoId);\n      throw sabrError(error, videoId);\n    }\n  }")
+          p.write_text(s)
+
+          p=Path('src/providers/registry.ts'); s=p.read_text()
+          s=s.replace("close() { this.sources.close(); }", "close() {\n    for (const provider of this.providers) (provider as Provider & { close?: () => void }).close?.();\n    this.sources.close();\n  }")
+          p.write_text(s)
+
+          p=Path('package.json'); pkg=json.loads(p.read_text()); pkg['version']='0.1.0-alpha.6'; pkg['dependencies']['bgutils-js']='4.0.2'; pkg['dependencies']['jsdom']='30.0.0'; p.write_text(json.dumps(pkg,indent=2,ensure_ascii=False)+'\n')
+          p=Path('src/version.ts'); p.write_text(p.read_text().replace('0.1.0-alpha.5','0.1.0-alpha.6'))
+          p=Path('README.md'); p.write_text(p.read_text().replace('0.1.0-alpha.5','0.1.0-alpha.6'))
+          p=Path('openapi.yaml'); p.write_text(p.read_text().replace('0.1.0-alpha.5','0.1.0-alpha.6'))
+
+          p=Path('.env.example'); s=p.read_text()
+          s=s.replace("# Alguns clientes/IPs podem exigir Proof-of-Origin. Deixe vazio até o YouTube exigir.\nYOUTUBE_PO_TOKEN=", "# Geração automática de PO Token content-bound por vídeo.\nYOUTUBE_PO_TOKEN_AUTO_ENABLED=true\n# Token estático opcional, usado somente como fallback.\nYOUTUBE_PO_TOKEN=\nYOUTUBE_PO_TOKEN_REQUEST_KEY=O43z0dpjhgX20SCx4KAo\nYOUTUBE_PO_TOKEN_CACHE_TTL_MS=21600000\nYOUTUBE_PO_TOKEN_CACHE_MAX_ENTRIES=256\nYOUTUBE_PO_TOKEN_GENERATION_TIMEOUT_MS=30000\nYOUTUBE_PO_TOKEN_FAILURE_COOLDOWN_MS=60000")
+          p.write_text(s)
+
+          p=Path('CHANGELOG.md'); s=p.read_text()
+          if '## 0.1.0-alpha.6' not in s:
+            s=s.replace('# Changelog\n', '# Changelog\n\n## 0.1.0-alpha.6 — 2026-08-02\n\n- PO Token Web/BotGuard gerado automaticamente por vídeo com `bgutils-js`.\n- Cache content-bound, renovação por expiração e invalidação automática em 403/Stream Protection.\n- `YOUTUBE_PO_TOKEN` continua disponível apenas como fallback.\n\n')
+          p.write_text(s)
+
+          Path('.alpha6/APPLY').unlink(missing_ok=True)
+      - run: npm install
+      - run: npm test
+      - name: Commit validated alpha.6
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release LavaLens Native v0.1.0-alpha.6 with automatic PO tokens'
+          git push
